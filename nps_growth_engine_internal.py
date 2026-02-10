@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
@@ -11,6 +12,7 @@ import hashlib
 import json
 import os
 from datetime import datetime
+import re
 
 # --------------------------------------------------
 # CONFIG
@@ -91,6 +93,7 @@ if 'authenticated' not in st.session_state:
     st.session_state.df = None
     st.session_state.review_embeddings = None
     st.session_state.api_key = None
+    st.session_state.data_loaded = False
 
 # --------------------------------------------------
 # LOGIN PAGE
@@ -126,14 +129,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # --------------------------------------------------
-# MAIN APP (AFTER LOGIN)
-# --------------------------------------------------
-
-st.title(f"🚀 Internal NPS Intelligence & Growth Engine")
-st.markdown(f"Welcome, **{st.session_state.username}** ({st.session_state.role}) | [Logout](#)")
-
-# --------------------------------------------------
-# DATA DOWNLOAD FROM GOOGLE DRIVE
+# DATA DOWNLOAD FROM GOOGLE DRIVE (AUTOMATIC)
 # --------------------------------------------------
 
 DATA_URL = "https://drive.google.com/uc?export=download&id=1pYGLkoNPUe2j-K9x41kKw4p1Opgr03Ls"
@@ -161,37 +157,32 @@ def download_data():
         return None
 
 # --------------------------------------------------
-# DATA LOADING SECTION
+# AUTOMATIC DATA LOADING
 # --------------------------------------------------
 
-st.sidebar.header("📊 Data Source")
-data_source = st.sidebar.radio(
-    "Choose data source:",
-    ["Download from Google Drive", "Upload CSV File"]
-)
-
-df = None
-
-if data_source == "Download from Google Drive":
-    if st.sidebar.button("Download Data", type="primary"):
-        with st.spinner("Downloading data from Google Drive..."):
-            df = download_data()
-            if df is not None:
-                st.session_state.df = df
-                st.success(f"Downloaded {len(df)} reviews successfully!")
-                st.rerun()
-    
-    if st.session_state.df is not None:
-        df = st.session_state.df
-else:
-    uploaded_file = st.sidebar.file_uploader("Upload Review CSV", type=["csv"])
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        st.session_state.df = df
+if st.session_state.df is None and not st.session_state.data_loaded:
+    with st.spinner("📥 Loading NPS data from Google Drive..."):
+        df = download_data()
+        if df is not None:
+            st.session_state.df = df
+            st.session_state.data_loaded = True
+            st.rerun()
+        else:
+            st.error("Failed to load data. Please check your internet connection.")
+            st.stop()
 
 # --------------------------------------------------
-# MAIN CONTENT (IF DATA LOADED)
+# MAIN APP (AFTER LOGIN)
 # --------------------------------------------------
+
+st.title(f"🚀 Internal NPS Intelligence & Growth Engine")
+st.markdown(f"Welcome, **{st.session_state.username}** ({st.session_state.role})")
+
+# --------------------------------------------------
+# DATA PROCESSING
+# --------------------------------------------------
+
+df = st.session_state.df
 
 if df is not None:
     # Validate required columns
@@ -227,10 +218,10 @@ if df is not None:
     nps = ((promoters - detractors) / total) * 100
     
     # --------------------------------------------------
-    # TABS
+    # TABS (3 TABS NOW)
     # --------------------------------------------------
     
-    tab1, tab2 = st.tabs(["📊 NPS Dashboard", "💬 AI Chat Assistant"])
+    tab1, tab2, tab3 = st.tabs(["📊 NPS Dashboard", "💬 AI Chat Assistant", "📋 Data Table"])
     
     # ==================================================
     # TAB 1 — DASHBOARD
@@ -371,13 +362,13 @@ if df is not None:
         """)
     
     # ==================================================
-    # TAB 2 — AI CHAT ASSISTANT (CONVERSATIONAL)
+    # TAB 2 — AI CHAT ASSISTANT (ENHANCED)
     # ==================================================
     
     with tab2:
         
         st.subheader("💬 AI Chat Assistant")
-        st.markdown("Ask questions about your NPS data in a conversational way.")
+        st.markdown("Ask questions about your NPS data. I can create charts and visualizations for you!")
         
         # ---------------------------
         # OpenAI API Key from Secrets
@@ -436,18 +427,95 @@ if df is not None:
                 st.success(f"Generated embeddings for {len(review_texts)} reviews")
         
         # ---------------------------
-        # Chat Interface
+        # Chat Interface with History Display
         # ---------------------------
         
-        # Display chat history
-        st.subheader("Conversation")
+        # Display chat history in a scrollable container
+        st.subheader("Conversation History")
         
-        for message in st.session_state.chat_history:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+        chat_container = st.container(height=400, border=True)
         
-        # Chat input
-        if prompt := st.chat_input("Ask a question about your NPS data..."):
+        with chat_container:
+            for message in st.session_state.chat_history:
+                with st.chat_message(message["role"]):
+                    # Check if message contains chart instructions
+                    content = message["content"]
+                    
+                    # Check for plotly chart patterns
+                    if "```plotly" in content or "chart:" in content.lower() or "plot:" in content.lower():
+                        # Try to extract and render chart
+                        try:
+                            # Simple pattern matching for chart descriptions
+                            if "bar chart" in content.lower() or "histogram" in content.lower():
+                                # Create a simple bar chart based on rating distribution
+                                rating_counts = df["rating"].value_counts().sort_index()
+                                fig = px.bar(x=rating_counts.index, y=rating_counts.values,
+                                           title="Rating Distribution",
+                                           labels={"x": "Rating", "y": "Count"})
+                                st.plotly_chart(fig, use_container_width=True)
+                                
+                            elif "pie chart" in content.lower() or "nps category" in content.lower():
+                                # Create pie chart of NPS categories
+                                category_counts = df["nps_category"].value_counts()
+                                fig = px.pie(values=category_counts.values, names=category_counts.index,
+                                           title="NPS Category Distribution")
+                                st.plotly_chart(fig, use_container_width=True)
+                                
+                            elif "sentiment" in content.lower():
+                                # Create sentiment distribution chart
+                                fig = px.histogram(df, x="sentiment", nbins=20,
+                                                 title="Sentiment Distribution",
+                                                 labels={"sentiment": "Sentiment Score"})
+                                st.plotly_chart(fig, use_container_width=True)
+                                
+                            elif "scatter" in content.lower() or "correlation" in content.lower():
+                                # Create scatter plot of rating vs sentiment
+                                fig = px.scatter(df, x="rating", y="sentiment",
+                                               color="nps_category",
+                                               title="Rating vs Sentiment by NPS Category",
+                                               labels={"rating": "Rating", "sentiment": "Sentiment Score"})
+                                st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Display the text content as well
+                            st.markdown(content)
+                            
+                        except Exception as e:
+                            st.markdown(content)
+                            st.warning(f"Chart rendering attempted but failed: {str(e)}")
+                    else:
+                        st.markdown(content)
+        
+        # ---------------------------
+        # Chat Input at Bottom (Multiline)
+        # ---------------------------
+        
+        st.divider()
+        st.subheader("Your Message")
+        
+        # Create a multiline text input at the bottom
+        col1, col2 = st.columns([4, 1])
+        
+        with col1:
+            user_input = st.text_area(
+                "Type your message here...",
+                height=100,
+                placeholder="Ask me anything about the NPS data. You can ask for charts like 'Show me a bar chart of ratings' or 'Create a pie chart of NPS categories'",
+                label_visibility="collapsed"
+            )
+        
+        with col2:
+            send_button = st.button("Send", type="primary", use_container_width=True)
+            clear_button = st.button("Clear Chat", type="secondary", use_container_width=True)
+        
+        # Handle clear button
+        if clear_button:
+            st.session_state.chat_history = []
+            st.rerun()
+        
+        # Handle send button
+        if send_button and user_input.strip():
+            prompt = user_input.strip()
+            
             # Add user message to chat history
             st.session_state.chat_history.append({
                 "role": "user",
@@ -455,19 +523,14 @@ if df is not None:
                 "timestamp": datetime.now().isoformat()
             })
             
-            # Display user message
-            with st.chat_message("user"):
-                st.markdown(prompt)
-            
             # Check if API key is available
             if not st.session_state.api_key:
-                with st.chat_message("assistant"):
-                    st.error("Please provide an OpenAI API key to use the chat assistant.")
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": "I need an OpenAI API key to answer your questions. Please provide one in the API key field above.",
-                        "timestamp": datetime.now().isoformat()
-                    })
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": "I need an OpenAI API key to answer your questions. Please provide one in the API key field above.",
+                    "timestamp": datetime.now().isoformat()
+                })
+                st.rerun()
             else:
                 # Prepare context from embeddings if available
                 context = ""
@@ -502,7 +565,7 @@ if df is not None:
                     
                     context = f"\nRelevant Reviews:\n{relevant_reviews.to_string()}"
                 
-                # Prepare system prompt with conversation history
+                # Prepare system prompt with conversation history and chart capabilities
                 conversation_history = "\n".join([
                     f"{msg['role'].capitalize()}: {msg['content']}" 
                     for msg in st.session_state.chat_history[-6:-1]  # Last 5 messages (excluding current)
@@ -519,63 +582,195 @@ Current NPS metrics:
 - Passives: {passives}
 - Detractors: {detractors}
 
+Available data columns: date, rating, text, nps_score, nps_category, sentiment
+
 {context}
+
+IMPORTANT: When the user asks for charts or visualizations, you can create them by including special markers:
+- For a bar chart of ratings: include "CHART:bar:rating" in your response
+- For a pie chart of NPS categories: include "CHART:pie:nps_category"  
+- For a histogram of sentiment: include "CHART:histogram:sentiment"
+- For a scatter plot of rating vs sentiment: include "CHART:scatter:rating:sentiment"
 
 Use the data above to answer the user's question. If you don't have enough information, ask clarifying questions.
 Be conversational and helpful."""
                 
                 # Generate response
-                with st.chat_message("assistant"):
-                    with st.spinner("Thinking..."):
-                        try:
-                            response = client.chat.completions.create(
-                                model="gpt-4o-mini",
-                                messages=[
-                                    {"role": "system", "content": system_prompt},
-                                    {"role": "user", "content": prompt}
-                                ],
-                                temperature=0.7
-                            )
-                            
-                            answer = response.choices[0].message.content
-                            st.markdown(answer)
-                            
-                            # Add assistant response to chat history
-                            st.session_state.chat_history.append({
-                                "role": "assistant",
-                                "content": answer,
-                                "timestamp": datetime.now().isoformat()
-                            })
-                        except Exception as e:
-                            error_msg = f"Error generating response: {str(e)}"
-                            st.error(error_msg)
-                            st.session_state.chat_history.append({
-                                "role": "assistant",
-                                "content": f"I encountered an error: {str(e)}",
-                                "timestamp": datetime.now().isoformat()
-                            })
-        
-        # Add clear chat button
-        st.divider()
-        if st.button("Clear Chat History", type="secondary"):
-            st.session_state.chat_history = []
-            st.rerun()
-
-# --------------------------------------------------
-# NO DATA MESSAGE
-# --------------------------------------------------
-else:
-    st.info("👈 Please load data using the sidebar options to get started.")
+                with st.spinner("Thinking..."):
+                    try:
+                        client = OpenAI(api_key=st.session_state.api_key)
+                        response = client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": prompt}
+                            ],
+                            temperature=0.7
+                        )
+                        
+                        answer = response.choices[0].message.content
+                        
+                        # Add assistant response to chat history
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "content": answer,
+                            "timestamp": datetime.now().isoformat()
+                        })
+                        
+                        st.rerun()
+                        
+                    except Exception as e:
+                        error_msg = f"Error generating response: {str(e)}"
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "content": f"I encountered an error: {str(e)}",
+                            "timestamp": datetime.now().isoformat()
+                        })
+                        st.rerun()
     
-    # Show data preview if available
-    if os.path.exists("reviews.csv"):
-        st.subheader("Sample Data Available")
-        sample_df = pd.read_csv("reviews.csv", nrows=5)
-        st.dataframe(sample_df)
-        if st.button("Load Sample Data"):
-            df = pd.read_csv("reviews.csv")
-            st.session_state.df = df
-            st.rerun()
+    # ==================================================
+    # TAB 3 — DATA TABLE VIEW
+    # ==================================================
+    
+    with tab3:
+        
+        st.subheader("📋 Raw Data Table")
+        st.markdown(f"Showing {len(df)} reviews. Use the filters below to explore the data.")
+        
+        # Data summary
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Reviews", len(df))
+        with col2:
+            st.metric("Date Range", f"{df['date'].min().strftime('%Y-%m-%d')} to {df['date'].max().strftime('%Y-%m-%d')}")
+        with col3:
+            st.metric("Columns", len(df.columns))
+        
+        st.divider()
+        
+        # Filters
+        st.subheader("🔍 Filters")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Rating filter
+            min_rating, max_rating = st.slider(
+                "Rating Range",
+                min_value=1,
+                max_value=5,
+                value=(1, 5)
+            )
+        
+        with col2:
+            # NPS Category filter
+            categories = ["All"] + df["nps_category"].unique().tolist()
+            selected_category = st.selectbox(
+                "NPS Category",
+                categories
+            )
+        
+        with col3:
+            # Date range filter
+            min_date = df["date"].min().date()
+            max_date = df["date"].max().date()
+            date_range = st.date_input(
+                "Date Range",
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date
+            )
+        
+        # Apply filters
+        filtered_df = df.copy()
+        
+        # Rating filter
+        filtered_df = filtered_df[(filtered_df["rating"] >= min_rating) & (filtered_df["rating"] <= max_rating)]
+        
+        # NPS Category filter
+        if selected_category != "All":
+            filtered_df = filtered_df[filtered_df["nps_category"] == selected_category]
+        
+        # Date filter
+        if len(date_range) == 2:
+            start_date, end_date = date_range
+            filtered_df = filtered_df[
+                (filtered_df["date"].dt.date >= start_date) & 
+                (filtered_df["date"].dt.date <= end_date)
+            ]
+        
+        st.divider()
+        
+        # Display filtered data
+        st.subheader(f"📊 Filtered Data ({len(filtered_df)} reviews)")
+        
+        # Show data table with pagination
+        page_size = 20
+        total_pages = max(1, len(filtered_df) // page_size + (1 if len(filtered_df) % page_size > 0 else 0))
+        
+        page_number = st.number_input(
+            "Page",
+            min_value=1,
+            max_value=total_pages,
+            value=1,
+            step=1
+        )
+        
+        start_idx = (page_number - 1) * page_size
+        end_idx = min(start_idx + page_size, len(filtered_df))
+        
+        # Display the current page
+        st.dataframe(
+            filtered_df.iloc[start_idx:end_idx][["date", "rating", "nps_category", "sentiment", "text"]],
+            use_container_width=True,
+            height=400
+        )
+        
+        st.caption(f"Showing rows {start_idx + 1} to {end_idx} of {len(filtered_df)}")
+        
+        # Download option
+        st.divider()
+        st.subheader("📥 Export Data")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            csv = filtered_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download Filtered CSV",
+                data=csv,
+                file_name=f"nps_filtered_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                type="primary"
+            )
+        
+        with col2:
+            csv_all = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download All Data CSV",
+                data=csv_all,
+                file_name=f"nps_all_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+        
+        # Data statistics
+        st.divider()
+        st.subheader("📈 Quick Statistics")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Average Rating", round(filtered_df["rating"].mean(), 2))
+            st.metric("Median Rating", filtered_df["rating"].median())
+        
+        with col2:
+            st.metric("Average Sentiment", round(filtered_df["sentiment"].mean(), 3))
+            st.metric("Positive Reviews", len(filtered_df[filtered_df["sentiment"] > 0.05]))
+        
+        with col3:
+            category_counts = filtered_df["nps_category"].value_counts()
+            for category, count in category_counts.items():
+                st.metric(f"{category}s", count)
 
 # --------------------------------------------------
 # LOGOUT FUNCTIONALITY
@@ -589,4 +784,5 @@ if st.sidebar.button("Logout", type="secondary"):
     st.session_state.df = None
     st.session_state.review_embeddings = None
     st.session_state.api_key = None
+    st.session_state.data_loaded = False
     st.rerun()
