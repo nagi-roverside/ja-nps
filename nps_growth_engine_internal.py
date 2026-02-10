@@ -97,17 +97,6 @@ if not st.session_state.authenticated:
                     st.rerun()
                 else:
                     st.error("Invalid username or password")
-            
-            st.divider()
-            st.markdown("### Setup Instructions")
-            st.markdown("""
-            **For Streamlit Cloud Deployment:**
-            1. Add user credentials to Streamlit Secrets
-            2. Format: `USERS = "username:password:role,username2:password2:role2"`
-            3. Example: `USERS = "admin:AdminPass123:admin,analyst:AnalystPass456:analyst"`
-            
-            **Roles available:** admin, analyst, viewer
-            """)
     
     st.stop()
 

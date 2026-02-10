@@ -91,6 +91,37 @@ ja-nps/
     └── secrets.toml                  # Local secrets (optional)
 ```
 
+## NPS Calculation Methodology
+
+The application calculates Net Promoter Score (NPS) using the following methodology:
+
+### 1. **Rating Conversion (1-5 scale to 0-10 scale)**
+```
+NPS Score = Rating × 2
+```
+- 1-star → 2 points
+- 2-star → 4 points  
+- 3-star → 6 points
+- 4-star → 8 points
+- 5-star → 10 points
+
+### 2. **Customer Classification**
+Based on converted NPS scores:
+- **Promoters**: Score 9-10 (Highly satisfied, likely to recommend)
+- **Passives**: Score 7-8 (Satisfied but not enthusiastic)
+- **Detractors**: Score 0-6 (Unsatisfied, unlikely to recommend)
+
+### 3. **NPS Formula**
+```
+NPS = (Promoters - Detractors) ÷ Total Respondents × 100
+```
+
+### 4. **NPS Interpretation**
+- **> 0**: Positive (More promoters than detractors)
+- **> 30**: Good (Strong customer loyalty)
+- **> 50**: Excellent (World-class customer experience)
+- **> 70**: Exceptional (Top-tier performance)
+
 ## Data Requirements
 
 CSV files must contain these columns:
