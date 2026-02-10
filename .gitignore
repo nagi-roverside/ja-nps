@@ -96,7 +96,6 @@ test_*.py
 
 # Specific files to ignore
 login_and_test.py
-scraper.py
 
 # Keep these app files (DO NOT IGNORE):
 # !nps_growth_engine_internal.py
