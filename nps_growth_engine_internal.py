@@ -21,61 +21,39 @@ import re
 st.set_page_config(page_title="NPS Growth Engine", layout="wide")
 
 # --------------------------------------------------
-# LOGIN SYSTEM
+# LOGIN SYSTEM (USING STREAMLIT SECRETS)
 # --------------------------------------------------
-
-CREDENTIALS_FILE = "user_credentials.json"
-
-def load_credentials():
-    """Load user credentials from file"""
-    if os.path.exists(CREDENTIALS_FILE):
-        try:
-            with open(CREDENTIALS_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
-
-def save_credentials(credentials):
-    """Save user credentials to file"""
-    with open(CREDENTIALS_FILE, 'w') as f:
-        json.dump(credentials, f, indent=2)
 
 def hash_password(password):
     """Simple password hashing"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-def init_demo_users():
-    """Initialize demo users if credentials file doesn't exist"""
-    credentials = load_credentials()
-    if not credentials:
-        demo_users = {
-            "admin": {
-                "password_hash": hash_password("Admin@123!"),
-                "role": "admin"
-            },
-            "analyst": {
-                "password_hash": hash_password("Analyst@456!"),
-                "role": "analyst"
-            },
-            "viewer": {
-                "password_hash": hash_password("Viewer@789!"),
-                "role": "viewer"
-            }
-        }
-        save_credentials(demo_users)
-        return demo_users
-    return credentials
-
-# Initialize demo users
-credentials = init_demo_users()
-
-# --------------------------------------------------
-# AUTHENTICATION
-# --------------------------------------------------
+def load_credentials_from_secrets():
+    """Load user credentials from Streamlit secrets"""
+    try:
+        # Try to get credentials from secrets
+        if 'USERS' in st.secrets:
+            users_config = st.secrets['USERS']
+            credentials = {}
+            
+            # Parse users from secrets (format: "username:password:role,username2:password2:role2")
+            users_list = users_config.split(',')
+            for user_entry in users_list:
+                parts = user_entry.strip().split(':')
+                if len(parts) == 3:
+                    username, password, role = parts
+                    credentials[username] = {
+                        "password_hash": hash_password(password),
+                        "role": role
+                    }
+            return credentials
+    except:
+        pass
+    return {}
 
 def check_login(username, password):
     """Check if username and password are valid"""
+    credentials = load_credentials_from_secrets()
     if username in credentials:
         stored_hash = credentials[username]["password_hash"]
         return hash_password(password) == stored_hash
@@ -113,17 +91,22 @@ if not st.session_state.authenticated:
                 if check_login(username, password):
                     st.session_state.authenticated = True
                     st.session_state.username = username
-                    st.session_state.role = credentials[username]["role"]
+                    # Get role from credentials
+                    credentials = load_credentials_from_secrets()
+                    st.session_state.role = credentials.get(username, {}).get("role", "user")
                     st.rerun()
                 else:
                     st.error("Invalid username or password")
             
             st.divider()
-            st.markdown("### Demo Users")
+            st.markdown("### Setup Instructions")
             st.markdown("""
-            - **admin** / Admin@123!
-            - **analyst** / Analyst@456!
-            - **viewer** / Viewer@789!
+            **For Streamlit Cloud Deployment:**
+            1. Add user credentials to Streamlit Secrets
+            2. Format: `USERS = "username:password:role,username2:password2:role2"`
+            3. Example: `USERS = "admin:AdminPass123:admin,analyst:AnalystPass456:analyst"`
+            
+            **Roles available:** admin, analyst, viewer
             """)
     
     st.stop()
