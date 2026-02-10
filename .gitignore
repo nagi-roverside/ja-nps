@@ -1,0 +1,107 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pyvenv.cfg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Streamlit - keep directory structure but ignore secrets
+.streamlit/secrets.toml
+
+# Data files (large or sensitive) - sample data should be ignored
+reviews.csv
+reviews.db
+*.db
+*.sqlite
+*.sqlite3
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+
+# Credentials (sensitive) - should be created on first run
+user_credentials.json
+
+# Temporary files
+temp_*
+*.tmp
+*.temp
+
+# Logs
+*.log
+logs/
+
+# System directories
+bin/
+etc/
+include/
+share/
+lib/
+lib64/
+
+# Browser profile
+.browser_profile/
+
+# Claude
+.claude/
+
+# Test files
+test_*.py
+*_test.py
+
+# Cache
+.cache/
+
+# Specific files to ignore
+login_and_test.py
+scraper.py
+
+# Keep these app files (DO NOT IGNORE):
+# !nps_growth_engine_internal.py
+# !requirements.txt
+# !README.md
+# !DEPLOYMENT.md
+# !.streamlit/  (directory, but not secrets.toml)
+# !.gitignore

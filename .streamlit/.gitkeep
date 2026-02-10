@@ -1,0 +1,3 @@
+# This file ensures the .streamlit directory is kept in git
+# The secrets.toml file is ignored for security reasons
+# Users should create their own secrets.toml with API keys
